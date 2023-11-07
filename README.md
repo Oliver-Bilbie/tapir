@@ -1,2 +1,20 @@
-# tapir
-[WIP] TUI application for testing APIs
+# Tapir - *Work in progress*
+
+### About
+
+Tapir is a terminal application for testing APIs with a graphical interface, written in Rust so that you can go *blazingly fast*.
+(The name is a contraction of *Terminal API Rust*)
+
+### Roadmap
+
+#### API Support
+
+- [ ] Support for REST APIs
+- [ ] Support for SOAP APIs
+- [ ] Support for GraphQL APIs
+- [ ] Support for WebSocket APIs
+- [ ] Support for gRPC APIs
+
+#### Features
+- [ ] Store and retrieve request history
+- [ ] Set global parameters to enable easy re-use of credentials etc across multiple requests
