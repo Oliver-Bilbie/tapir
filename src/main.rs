@@ -128,9 +128,22 @@ async fn run_app<B: Backend>(
                         // TODO: Refactor this so that the await does not block the event loop
                         let api_response =
                             http_request::make_http_request(endpoint, method, headers).await;
-                        // TODO: Handle error
-                        let output = serde_json::to_string_pretty(&api_response).unwrap();
-                        return Ok(Some(output));
+                        match api_response {
+                            Ok(api_response) => {
+                                let output = serde_json::to_string_pretty(&api_response);
+                                match output {
+                                    Ok(output) => {
+                                        return Ok(Some(output));
+                                    }
+                                    Err(err) => {
+                                        return Ok(Some(format!("{:?}", err)));
+                                    }
+                                }
+                            }
+                            Err(err) => {
+                                return Ok(Some(format!("{:?}", err)));
+                            }
+                        }
                     }
                     KeyCode::Char('q') => {
                         return Ok(None);

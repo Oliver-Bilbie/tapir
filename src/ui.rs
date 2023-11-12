@@ -110,7 +110,7 @@ pub fn ui<B: Backend>(frame: &mut Frame, app: &App) {
         let popup_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .margin(1)
-            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
             .split(area);
         let mut key_block = Block::default().title("Key").borders(Borders::ALL);
         let mut value_block = Block::default().title("Value").borders(Borders::ALL);
@@ -153,7 +153,7 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
+            Constraint::Max(5),
             Constraint::Percentage((100 - percent_y) / 2),
         ])
         .split(r);
