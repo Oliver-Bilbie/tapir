@@ -1,10 +1,22 @@
-use std::collections::HashMap;
 use serde_json::Result;
+use std::collections::HashMap;
+
+pub enum InputMode {
+    Add,
+    Edit(String), // Containing the key of the entry to edit
+}
+
+pub struct InputState {
+    pub mode: InputMode,
+    pub selected_item: KeyValuePair,
+    pub key: String,
+    pub value: String,
+}
 
 pub enum CurrentScreen {
     Main,
-    Editing,
-    Exiting,
+    Input(InputState),
+    Submit,
 }
 
 pub enum KeyValuePair {
@@ -13,49 +25,64 @@ pub enum KeyValuePair {
 }
 
 pub struct App {
-    pub key_input: String,              // the currently being edited json key.
-    pub value_input: String,            // the currently being edited json value.
-    pub request_headers: HashMap<String, String>, // The representation of our key and value pairs with serde Serialize support
-    pub current_screen: CurrentScreen, // the current screen the user is looking at, and will later determine what is rendered.
-    pub selected_index: u8, // the currently selected key-value pair, which will be used to determine which pair is being edited.
-    pub currently_editing: Option<KeyValuePair>, // the optional state containing which of the key or value pair the user is editing. It is an option, because when the user is not directly editing a key-value pair, this will be set to `None`.
+    pub current_screen: CurrentScreen,
+    pub request_headers: HashMap<String, String>,
+    pub selected_index: Option<u8>,
 }
 
 impl App {
     pub fn new() -> App {
         App {
-            key_input: String::new(),
-            value_input: String::new(),
-            request_headers: HashMap::new(),
             current_screen: CurrentScreen::Main,
-            selected_index: 0,
-            currently_editing: None,
+            request_headers: HashMap::new(),
+            selected_index: None,
         }
     }
 
-    pub fn save_key_value(&mut self) {
-        self.request_headers
-            .insert(self.key_input.clone(), self.value_input.clone());
-
-        self.key_input = String::new();
-        self.value_input = String::new();
-        self.currently_editing = None;
-    }
-
-    pub fn toggle_editing(&mut self) {
-        if let Some(edit_mode) = &self.currently_editing {
-            match edit_mode {
-                KeyValuePair::Key => self.currently_editing = Some(KeyValuePair::Value),
-                KeyValuePair::Value => self.currently_editing = Some(KeyValuePair::Key),
-            };
-        } else {
-            self.currently_editing = Some(KeyValuePair::Key);
+    pub fn write_item(&mut self) {
+        match self.current_screen {
+            CurrentScreen::Input(ref mut input_state) => {
+                match input_state.mode {
+                    InputMode::Add => {
+                        self.request_headers
+                            .insert(input_state.key.clone(), input_state.value.clone());
+                    }
+                    InputMode::Edit(ref key) => {
+                        if input_state.key != *key {
+                            self.request_headers.remove(key);
+                        }
+                        self.request_headers
+                            .insert(input_state.key.clone(), input_state.value.clone());
+                    }
+                };
+            }
+            _ => {}
         }
     }
 
-    pub fn print_json(&self) -> Result<()> {
+    pub fn delete_item(&mut self, key: String) {
+        match self.current_screen {
+            CurrentScreen::Main => {
+                self.request_headers.remove(&key);
+            }
+            _ => {}
+        }
+    }
+
+    pub fn toggle_input_field(&mut self) {
+        match self.current_screen {
+            CurrentScreen::Input(ref mut input_state) => {
+                match input_state.selected_item {
+                    KeyValuePair::Key => input_state.selected_item = KeyValuePair::Value,
+                    KeyValuePair::Value => input_state.selected_item = KeyValuePair::Key,
+                };
+            }
+            _ => {}
+        };
+    }
+
+    pub fn get_json_output(&self) -> Result<String> {
         let output = serde_json::to_string(&self.request_headers)?;
-        println!("{}", output);
-        Ok(())
+        Ok(output)
     }
 }

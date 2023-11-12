@@ -27,7 +27,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // create app and run it
     let mut app = App::new();
-    let save_values = run_app(&mut terminal, &mut app);
+    let output_value = run_app(&mut terminal, &mut app);
 
     // restore terminal
     disable_raw_mode()?;
@@ -38,24 +38,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
     terminal.show_cursor()?;
 
-    // TODO: Actually save the values. For now, just print them.
-    match save_values {
-        Ok(true) => {
-            app.print_json()?;
-        }
-        Ok(false) => {
-            println!("Exiting without saving");
-        }
-        Err(_) => {
-            // TODO: Impliment recovery file
-            println!("Saving to recovery file");
-        }
+    if let Some(output) = output_value? {
+        println!("{}", output);
     }
 
     Ok(())
 }
 
-fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<bool> {
+fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<Option<String>> {
     loop {
         terminal.draw(|frame| ui::<B>(frame, app))?;
 
@@ -68,88 +58,119 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                 CurrentScreen::Main => match key.code {
                     // Navigation
                     KeyCode::Char('j') => {
-                        if app.selected_index < app.request_headers.len() as u8 - 1 {
-                            app.selected_index += 1;
+                        if let Some(selected_index) = app.selected_index {
+                            if selected_index < app.request_headers.len() as u8 - 1 {
+                                app.selected_index = Some(selected_index + 1);
+                            }
+                        } else if app.request_headers.len() > 0 {
+                            app.selected_index = Some(0);
                         }
                     }
                     KeyCode::Char('k') => {
-                        if app.selected_index > 0 {
-                            app.selected_index -= 1;
+                        if let Some(selected_index) = app.selected_index {
+                            if selected_index > 0 {
+                                app.selected_index = Some(selected_index - 1);
+                            }
+                        } else if app.request_headers.len() > 0 {
+                            app.selected_index = Some(app.request_headers.len() as u8 - 1);
                         }
                     }
 
-                    // CRUD
+                    // Edit values
                     KeyCode::Char('a') => {
-                        app.current_screen = CurrentScreen::Editing;
-                        app.currently_editing = Some(KeyValuePair::Key);
+                        app.current_screen = CurrentScreen::Input(app::InputState {
+                            mode: app::InputMode::Add,
+                            selected_item: app::KeyValuePair::Key,
+                            key: String::new(),
+                            value: String::new(),
+                        });
                     }
                     KeyCode::Char('e') => {
-                        app.current_screen = CurrentScreen::Editing;
-                        app.currently_editing = app.request_headers.keys().nth(app.selected_index as usize).map(|_| KeyValuePair::Value);
+                        if let Some(selected_index) = app.selected_index {
+                            let selected_key = app
+                                .request_headers
+                                .keys()
+                                .nth(selected_index as usize)
+                                .unwrap();
+                            let selected_value = app.request_headers.get(selected_key).unwrap();
+                            app.current_screen = CurrentScreen::Input(app::InputState {
+                                mode: app::InputMode::Edit(selected_key.clone()),
+                                selected_item: app::KeyValuePair::Key,
+                                key: selected_key.clone(),
+                                value: selected_value.clone(),
+                            });
+                        }
+                    }
+                    KeyCode::Char('d') => {
+                        if let Some(selected_index) = app.selected_index {
+                            let selected_key = app
+                                .request_headers
+                                .keys()
+                                .nth(selected_index as usize)
+                                .unwrap()
+                                .clone();
+                            app.delete_item(selected_key);
+                        }
                     }
 
                     // Functions
-                    KeyCode::Char('q') => {
-                        app.current_screen = CurrentScreen::Exiting;
+                    KeyCode::Enter => {
+                        app.current_screen = CurrentScreen::Submit;
                     }
+                    KeyCode::Char('q') => {
+                        return Ok(None);
+                    }
+
                     _ => {}
                 },
-                CurrentScreen::Exiting => match key.code {
+                CurrentScreen::Submit => match key.code {
                     KeyCode::Char('y') => {
-                        return Ok(true);
+                        let output = app.get_json_output();
+                        match output {
+                            Ok(output) => return Ok(Some(output)),
+                            Err(err) => {
+                                // TODO: Impliment error screen
+                                // app.current_screen = CurrentScreen::Error(err);
+                                return Err(err.into());
+                            }
+                        }
                     }
                     KeyCode::Char('n') | KeyCode::Char('q') => {
-                        return Ok(false);
+                        return Ok(None);
                     }
                     _ => {}
                 },
-                CurrentScreen::Editing if key.kind == KeyEventKind::Press => match key.code {
-                    KeyCode::Enter => {
-                        if let Some(editing) = &app.currently_editing {
-                            match editing {
-                                KeyValuePair::Key => {
-                                    app.currently_editing = Some(KeyValuePair::Value);
-                                }
-                                KeyValuePair::Value => {
-                                    app.save_key_value();
-                                    app.current_screen = CurrentScreen::Main;
-                                }
-                            }
+                CurrentScreen::Input(ref mut input_state) if key.kind == KeyEventKind::Press => {
+                    match key.code {
+                        KeyCode::Enter => {
+                            app.write_item();
+                            app.current_screen = CurrentScreen::Main;
                         }
-                    }
-                    KeyCode::Backspace => {
-                        if let Some(editing) = &app.currently_editing {
-                            match editing {
-                                KeyValuePair::Key => {
-                                    app.key_input.pop();
-                                }
-                                KeyValuePair::Value => {
-                                    app.value_input.pop();
-                                }
+                        KeyCode::Backspace => match input_state.selected_item {
+                            KeyValuePair::Key => {
+                                input_state.key.pop();
                             }
-                        }
-                    }
-                    KeyCode::Esc => {
-                        app.current_screen = CurrentScreen::Main;
-                        app.currently_editing = None;
-                    }
-                    KeyCode::Tab => {
-                        app.toggle_editing();
-                    }
-                    KeyCode::Char(value) => {
-                        if let Some(editing) = &app.currently_editing {
-                            match editing {
-                                KeyValuePair::Key => {
-                                    app.key_input.push(value);
-                                }
-                                KeyValuePair::Value => {
-                                    app.value_input.push(value);
-                                }
+                            KeyValuePair::Value => {
+                                input_state.value.pop();
                             }
+                        },
+                        KeyCode::Esc => {
+                            app.current_screen = CurrentScreen::Main;
                         }
+                        KeyCode::Tab => {
+                            app.toggle_input_field();
+                        }
+                        KeyCode::Char(value) => match input_state.selected_item {
+                            KeyValuePair::Key => {
+                                input_state.key.push(value);
+                            }
+                            KeyValuePair::Value => {
+                                input_state.value.push(value);
+                            }
+                        },
+                        _ => {}
                     }
-                    _ => {}
-                },
+                }
                 _ => {}
             }
         }
