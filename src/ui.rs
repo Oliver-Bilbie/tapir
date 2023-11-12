@@ -75,15 +75,15 @@ pub fn ui<B: Backend>(frame: &mut Frame, app: &App) {
     let current_keys_hint = {
         match app.current_screen {
             CurrentScreen::Main => Span::styled(
-                "[q]uit / [e]dit / [a]dd / [d]elete / [h]elp",
+                "[a]dd / [e]dit / [d]elete / [q]uit / Enter to submit",
                 Style::default().fg(Color::Red),
             ),
             CurrentScreen::Input(_) => Span::styled(
-                "(ESC) to cancel/(Tab) to switch boxes/enter to complete",
+                "(ESC) to cancel / (Tab) to switch boxes / Enter to submit",
                 Style::default().fg(Color::Red),
             ),
             CurrentScreen::Submit => Span::styled(
-                "[q]uit / [e]dit / [a]dd / [d]elete / [h]elp",
+                "[a]dd / [e]dit / [d]elete / [q]uit / Enter to submit",
                 Style::default().fg(Color::Red),
             ),
         }

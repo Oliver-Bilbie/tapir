@@ -11,13 +11,15 @@ use ratatui::{
 };
 
 mod app;
+mod http_request;
 mod ui;
 use crate::{
     app::{App, CurrentScreen, KeyValuePair},
     ui::ui,
 };
 
-fn main() -> Result<(), Box<dyn Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
     // setup terminal
     enable_raw_mode()?;
     let mut stderr = io::stderr(); // This is a special case. Normally using stdout is fine
@@ -27,7 +29,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // create app and run it
     let mut app = App::new();
-    let output_value = run_app(&mut terminal, &mut app);
+    let output_value = run_app(&mut terminal, &mut app).await;
 
     // restore terminal
     disable_raw_mode()?;
@@ -45,7 +47,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<Option<String>> {
+async fn run_app<B: Backend>(
+    terminal: &mut Terminal<B>,
+    app: &mut App,
+) -> io::Result<Option<String>> {
     loop {
         terminal.draw(|frame| ui::<B>(frame, app))?;
 
@@ -115,7 +120,17 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
 
                     // Functions
                     KeyCode::Enter => {
-                        app.current_screen = CurrentScreen::Submit;
+                        // WARN: Placeholder values for testing
+                        let endpoint = "https://catfact.ninja/fact";
+                        let method = http_request::HttpMethod::GET;
+                        let headers = app.request_headers.clone();
+
+                        // TODO: Refactor this so that the await does not block the event loop
+                        let api_response =
+                            http_request::make_http_request(endpoint, method, headers).await;
+                        // TODO: Handle error
+                        let output = serde_json::to_string_pretty(&api_response).unwrap();
+                        return Ok(Some(output));
                     }
                     KeyCode::Char('q') => {
                         return Ok(None);

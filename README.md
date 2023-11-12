@@ -7,6 +7,14 @@ Tapir is a terminal application for testing APIs with a graphical interface, wri
 
 ### Roadmap
 
+#### First draft
+
+- [x] TUI JSON builder
+- [x] Send a basic HTTP request
+- [ ] Allow users to specify an endpoint
+- [x] Allow users to specify request headers
+- [ ] Allow users to specify request body
+
 #### API Support
 
 - [ ] Support for REST APIs
@@ -16,5 +24,8 @@ Tapir is a terminal application for testing APIs with a graphical interface, wri
 - [ ] Support for gRPC APIs
 
 #### Features
+
+- [ ] Help menu
 - [ ] Store and retrieve request history
 - [ ] Set global parameters to enable easy re-use of credentials etc across multiple requests
+- [ ] GUI to display responses
