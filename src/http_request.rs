@@ -1,6 +1,8 @@
 use reqwest;
 use std::collections::HashMap;
+use std::fmt::Display;
 
+#[derive(Clone)]
 pub enum HttpMethod {
     GET,
     POST,
@@ -9,13 +11,25 @@ pub enum HttpMethod {
     DELETE,
 }
 
+impl Display for HttpMethod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HttpMethod::GET => write!(f, "GET"),
+            HttpMethod::POST => write!(f, "POST"),
+            HttpMethod::PUT => write!(f, "PUT"),
+            HttpMethod::PATCH => write!(f, "PATCH"),
+            HttpMethod::DELETE => write!(f, "DELETE"),
+        }
+    }
+}
+
 // TODO: Accept query params
-// TODO: Accept body
 pub async fn make_http_request(
-    endpoint: &str,
+    endpoint: String,
     method: HttpMethod,
     headers: HashMap<String, String>,
-) -> String {
+    body: HashMap<String, String>,
+) -> Result<String, reqwest::Error> {
     let client = reqwest::Client::new();
     let mut request = match method {
         HttpMethod::GET => client.get(endpoint),
@@ -29,10 +43,9 @@ pub async fn make_http_request(
         request = request.header(key, value);
     }
 
-    let response = request.send().await.unwrap().text().await;
-
-    match response {
-        Ok(response) => response,
-        Err(e) => format!("Error: {}", e),
+    for (key, value) in body.iter() {
+        request = request.form(&[(key, value)]);
     }
+
+    Ok(request.send().await?.text().await?)
 }
