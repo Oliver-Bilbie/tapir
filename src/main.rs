@@ -11,8 +11,10 @@ use ratatui::{
 };
 
 mod app;
+mod helpers;
 mod http_request;
 mod ui;
+
 use crate::{
     app::{App, CurrentScreen, KeyValuePair},
     ui::ui,
@@ -62,72 +64,45 @@ async fn run_app<B: Backend>(
             match app.current_screen {
                 CurrentScreen::Main => match key.code {
                     // Navigation
-                    KeyCode::Char('j') => {
-                        if let Some(selected_index) = app.selected_index {
-                            if selected_index < app.request_headers.len() as u8 - 1 {
-                                app.selected_index = Some(selected_index + 1);
-                            }
-                        } else if app.request_headers.len() > 0 {
-                            app.selected_index = Some(0);
-                        }
-                    }
-                    KeyCode::Char('k') => {
-                        if let Some(selected_index) = app.selected_index {
-                            if selected_index > 0 {
-                                app.selected_index = Some(selected_index - 1);
-                            }
-                        } else if app.request_headers.len() > 0 {
-                            app.selected_index = Some(app.request_headers.len() as u8 - 1);
-                        }
-                    }
+                    KeyCode::Char(']') => app.increment_section(false),
+                    KeyCode::Char('[') => app.increment_section(true),
+                    KeyCode::Char('j') => app.increment_selection(false),
+                    KeyCode::Char('k') => app.increment_selection(true),
 
                     // Edit values
+                    KeyCode::Tab => {
+                        app.current_screen = CurrentScreen::EndpointInput(app.endpoint.clone());
+                    }
                     KeyCode::Char('a') => {
-                        app.current_screen = CurrentScreen::Input(app::InputState {
-                            mode: app::InputMode::Add,
-                            selected_item: app::KeyValuePair::Key,
-                            key: String::new(),
-                            value: String::new(),
-                        });
+                        app.add_item();
                     }
                     KeyCode::Char('e') => {
-                        if let Some(selected_index) = app.selected_index {
-                            let selected_key = app
-                                .request_headers
-                                .keys()
-                                .nth(selected_index as usize)
-                                .unwrap();
-                            let selected_value = app.request_headers.get(selected_key).unwrap();
-                            app.current_screen = CurrentScreen::Input(app::InputState {
-                                mode: app::InputMode::Edit(selected_key.clone()),
-                                selected_item: app::KeyValuePair::Key,
-                                key: selected_key.clone(),
-                                value: selected_value.clone(),
-                            });
-                        }
+                        app.edit_item();
                     }
                     KeyCode::Char('d') => {
-                        if let Some(selected_index) = app.selected_index {
-                            let selected_key = app
-                                .request_headers
-                                .keys()
-                                .nth(selected_index as usize)
-                                .unwrap()
-                                .clone();
-                            app.delete_item(selected_key);
-                        }
+                        app.delete_item();
+                    }
+                    KeyCode::Char('m') => {
+                        app.increment_method(false);
+                    }
+                    KeyCode::Char('n') => {
+                        app.increment_method(true);
                     }
 
                     // Functions
                     KeyCode::Enter => {
-                        // WARN: Placeholder values for testing
-                        let endpoint = "https://catfact.ninja/fact";
-                        let method = http_request::HttpMethod::GET;
-                        let headers = app.request_headers.clone();
+                        let endpoint = app.endpoint.clone();
+                        if endpoint.is_empty() {
+                            return Ok(Some("No endpoint was provided.\n[HINT] Press Tab to edit the endpoint value.".to_string()));
+                        }
+
+                        let method = app.method.clone();
+                        let headers = app.section_values.request_headers.clone();
+                        let body = app.section_values.request_body.clone();
 
                         // TODO: Refactor this so that the await does not block the event loop
                         let api_response =
-                            http_request::make_http_request(endpoint, method, headers).await;
+                            http_request::make_http_request(endpoint, method, headers, body).await;
                         match api_response {
                             Ok(api_response) => {
                                 let output = serde_json::to_string_pretty(&api_response);
@@ -151,24 +126,32 @@ async fn run_app<B: Backend>(
 
                     _ => {}
                 },
-                CurrentScreen::Submit => match key.code {
-                    KeyCode::Char('y') => {
-                        let output = app.get_json_output();
-                        match output {
-                            Ok(output) => return Ok(Some(output)),
-                            Err(err) => {
-                                // TODO: Impliment error screen
-                                // app.current_screen = CurrentScreen::Error(err);
-                                return Err(err.into());
-                            }
-                        }
-                    }
+                CurrentScreen::Loading => match key.code {
+                    KeyCode::Char('y') => return Ok(Some(":)".to_string())),
                     KeyCode::Char('n') | KeyCode::Char('q') => {
                         return Ok(None);
                     }
                     _ => {}
                 },
-                CurrentScreen::Input(ref mut input_state) if key.kind == KeyEventKind::Press => {
+                CurrentScreen::EndpointInput(ref previous_endpoint) => match key.code {
+                    KeyCode::Enter => {
+                        app.current_screen = CurrentScreen::Main;
+                    }
+                    KeyCode::Backspace => {
+                        app.endpoint.pop();
+                    }
+                    KeyCode::Esc => {
+                        app.endpoint = previous_endpoint.clone();
+                        app.current_screen = CurrentScreen::Main;
+                    }
+                    KeyCode::Char(value) => {
+                        app.endpoint.push(value);
+                    }
+                    _ => {}
+                },
+                CurrentScreen::PairInput(ref mut input_state)
+                    if key.kind == KeyEventKind::Press =>
+                {
                     match key.code {
                         KeyCode::Enter => {
                             app.write_item();
