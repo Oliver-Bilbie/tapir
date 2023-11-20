@@ -1,5 +1,6 @@
 use crate::helpers::evaluate_new_index;
-use crate::http_request::HttpMethod;
+use crate::http_request::{make_http_request, HttpMethod};
+use serde_json::value::Value as JsonValue;
 use std::collections::HashMap;
 
 pub enum PairInputMode {
@@ -34,10 +35,10 @@ impl ToString for Section {
 }
 
 pub struct SectionValues {
-    pub request_body: HashMap<String, String>,
-    pub request_headers: HashMap<String, String>,
-    pub response_body: HashMap<String, String>,
-    pub response_headers: HashMap<String, String>,
+    pub request_body: HashMap<String, JsonValue>,
+    pub request_headers: HashMap<String, JsonValue>,
+    pub response_body: HashMap<String, JsonValue>,
+    pub response_headers: HashMap<String, JsonValue>,
 }
 
 pub enum CurrentScreen {
@@ -223,7 +224,7 @@ impl App {
                     mode: PairInputMode::Edit(edit_key.clone()),
                     selected_item: KeyValuePair::Key,
                     key: edit_key,
-                    value: edit_value,
+                    value: edit_value.to_string(),
                 });
             }
             None => return,
@@ -241,15 +242,19 @@ impl App {
 
                 match input_state.mode {
                     PairInputMode::Add => {
-                        selected_section_values
-                            .insert(input_state.key.clone(), input_state.value.clone());
+                        selected_section_values.insert(
+                            input_state.key.clone(),
+                            JsonValue::String(input_state.value.clone()),
+                        );
                     }
                     PairInputMode::Edit(ref key) => {
                         if input_state.key != *key {
                             selected_section_values.remove(key);
                         }
-                        selected_section_values
-                            .insert(input_state.key.clone(), input_state.value.clone());
+                        selected_section_values.insert(
+                            input_state.key.clone(),
+                            JsonValue::String(input_state.value.clone()),
+                        );
                     }
                 };
             }
@@ -339,5 +344,58 @@ impl App {
             }
             _ => return,
         };
+    }
+
+    pub async fn send_api_request(&mut self) {
+        match self.current_screen {
+            CurrentScreen::Main => {
+                self.current_screen = CurrentScreen::Loading;
+            }
+            _ => return,
+        };
+
+        let endpoint = self.endpoint.clone();
+        let method = self.method.clone();
+        let headers = self.section_values.request_headers.clone();
+        let body = self.section_values.request_body.clone();
+
+        if endpoint.is_empty() {
+            self.current_screen = CurrentScreen::Main;
+            // TODO: Implement alert popup and display one here
+            return;
+        }
+
+        let api_response = make_http_request(endpoint, method, headers, body).await;
+
+        match api_response {
+            Ok(api_response) => {
+                let response_body = serde_json::from_str(&api_response);
+                match response_body {
+                    Ok(response_body) => {
+                        self.section_values.response_body = response_body;
+                    }
+                    Err(err) => {
+                        // TODO: Implement alert popup and display one here
+                        self.section_values.response_body.insert(
+                            "Error parsing response".to_string(),
+                            JsonValue::String(format!("{:?}", err)),
+                        );
+                        self.section_values.response_body.insert(
+                            "Response string".to_string(),
+                            JsonValue::String(format!("{:?}", api_response)),
+                        );
+                    }
+                }
+            }
+            Err(err) => {
+                // TODO: Implement alert popup and display one here
+                self.section_values.response_body.insert(
+                    "Error making request".to_string(),
+                    JsonValue::String(format!("{:?}", err)),
+                );
+            }
+        }
+
+        self.current_screen = CurrentScreen::Main;
     }
 }

@@ -90,36 +90,7 @@ async fn run_app<B: Backend>(
                     }
 
                     // Functions
-                    KeyCode::Enter => {
-                        let endpoint = app.endpoint.clone();
-                        if endpoint.is_empty() {
-                            return Ok(Some("No endpoint was provided.\n[HINT] Press Tab to edit the endpoint value.".to_string()));
-                        }
-
-                        let method = app.method.clone();
-                        let headers = app.section_values.request_headers.clone();
-                        let body = app.section_values.request_body.clone();
-
-                        // TODO: Refactor this so that the await does not block the event loop
-                        let api_response =
-                            http_request::make_http_request(endpoint, method, headers, body).await;
-                        match api_response {
-                            Ok(api_response) => {
-                                let output = serde_json::to_string_pretty(&api_response);
-                                match output {
-                                    Ok(output) => {
-                                        return Ok(Some(output));
-                                    }
-                                    Err(err) => {
-                                        return Ok(Some(format!("{:?}", err)));
-                                    }
-                                }
-                            }
-                            Err(err) => {
-                                return Ok(Some(format!("{:?}", err)));
-                            }
-                        }
-                    }
+                    KeyCode::Enter => app.send_api_request().await,
                     KeyCode::Char('q') => {
                         return Ok(None);
                     }

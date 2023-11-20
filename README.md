@@ -1,4 +1,5 @@
-# Tapir - *Work in progress*
+# Tapir
+## *Work in progress*
 
 ### About
 
@@ -14,6 +15,7 @@ Tapir is a terminal application for testing APIs with a graphical interface, wri
 - [x] Allow users to specify an endpoint
 - [x] Allow users to specify request headers
 - [x] Allow users to specify request body
+- [ ] Support for request value types other than strings
 
 #### API Support
 

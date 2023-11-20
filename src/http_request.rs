@@ -1,4 +1,5 @@
 use reqwest;
+use serde_json::value::Value as JsonValue;
 use std::collections::HashMap;
 use std::fmt::Display;
 
@@ -27,8 +28,8 @@ impl Display for HttpMethod {
 pub async fn make_http_request(
     endpoint: String,
     method: HttpMethod,
-    headers: HashMap<String, String>,
-    body: HashMap<String, String>,
+    headers: HashMap<String, JsonValue>,
+    body: HashMap<String, JsonValue>,
 ) -> Result<String, reqwest::Error> {
     let client = reqwest::Client::new();
     let mut request = match method {
@@ -40,12 +41,10 @@ pub async fn make_http_request(
     };
 
     for (key, value) in headers.iter() {
-        request = request.header(key, value);
+        request = request.header(key, value.to_string());
     }
 
-    for (key, value) in body.iter() {
-        request = request.form(&[(key, value)]);
-    }
+    request = request.json(&body);
 
     Ok(request.send().await?.text().await?)
 }
